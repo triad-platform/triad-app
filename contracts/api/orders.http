@@ -1,0 +1,18 @@
+# Create Order
+POST /v1/orders
+Content-Type: application/json
+Idempotency-Key: <uuid>
+
+{
+  "user_id": "u_123",
+  "items": [
+    { "sku": "sku_abc", "qty": 2, "price_cents": 1299 }
+  ],
+  "currency": "USD"
+}
+
+# Response: 201
+{
+  "order_id": "<uuid>",
+  "status": "created"
+}
