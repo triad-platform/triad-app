@@ -1,0 +1,11 @@
+{
+  "type": "OrdersCreated",
+  "version": 1,
+  "fields": {
+    "order_id": "uuid",
+    "user_id": "string",
+    "total_cents": "int",
+    "currency": "string",
+    "created_at": "rfc3339"
+  }
+}
