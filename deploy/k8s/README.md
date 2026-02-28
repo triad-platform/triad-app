@@ -18,7 +18,10 @@ Kubernetes base manifests for the Phase 2 AWS-first PulseCart deployment.
 1. Container images
    - The ECR registry is now real (`971146591534.dkr.ecr.us-east-1.amazonaws.com`)
    - These base manifests intentionally use the mutable `develop` tag for the first dev environment
-   - CI also publishes immutable `${GITHUB_SHA}` tags for traceable rollbacks
+   - CI publishes three dev tag forms:
+     - `develop` (mutable branch tag)
+     - `sha-<12-char-sha>` (immutable)
+     - `develop-<12-char-sha>` (immutable but easier to identify in branch history)
 2. External dependency endpoints
    - Redis, NATS, and Postgres DNS names are placeholders until the platform layer is wired
 3. Ingress host

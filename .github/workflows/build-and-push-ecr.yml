@@ -33,6 +33,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Derive image tags
+        id: tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          short_sha="${GITHUB_SHA::12}"
+          echo "short_sha=${short_sha}" >> "${GITHUB_OUTPUT}"
+          echo "immutable_tag=sha-${short_sha}" >> "${GITHUB_OUTPUT}"
+          echo "branch_sha_tag=${GITHUB_REF_NAME}-${short_sha}" >> "${GITHUB_OUTPUT}"
+
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -45,7 +55,17 @@ jobs:
       - name: Build and push immutable image
         uses: triad-platform/triad-ci-security/reusable-actions/build-image@main
         with:
-          image: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_PREFIX }}-${{ matrix.service }}:${{ github.sha }}
+          image: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_PREFIX }}-${{ matrix.service }}:${{ steps.tags.outputs.immutable_tag }}
+          context: .
+          dockerfile: Dockerfile
+          push: 'true'
+          build_args: |
+            SERVICE=${{ matrix.service }}
+
+      - name: Build and push branch-sha tag
+        uses: triad-platform/triad-ci-security/reusable-actions/build-image@main
+        with:
+          image: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_PREFIX }}-${{ matrix.service }}:${{ steps.tags.outputs.branch_sha_tag }}
           context: .
           dockerfile: Dockerfile
           push: 'true'
