@@ -17,11 +17,11 @@ Kubernetes base manifests for the Phase 2 AWS-first PulseCart deployment.
 
 1. Container images
    - The ECR registry is now real (`971146591534.dkr.ecr.us-east-1.amazonaws.com`)
-   - These base manifests intentionally use the mutable `develop` tag for the first dev environment
+   - These base manifests intentionally use service-specific mutable branch tags for the first dev environment (for example `orders-develop`)
    - CI publishes three dev tag forms:
-     - `develop` (mutable branch tag)
-     - `sha-<12-char-sha>` (immutable)
-     - `develop-<12-char-sha>` (immutable but easier to identify in branch history)
+     - `<service>-develop` (mutable branch tag)
+     - `<service>-sha-<12-char-sha>` (immutable)
+     - `<service>-develop-<12-char-sha>` (immutable but easier to identify in branch history)
 2. External dependency endpoints
    - Redis, NATS, and Postgres DNS names are placeholders until the platform layer is wired
 3. Ingress host
@@ -34,7 +34,7 @@ Kubernetes base manifests for the Phase 2 AWS-first PulseCart deployment.
 Do not apply these manifests to a cluster yet unless all of the following are true:
 
 1. Real image names/tags exist and are pushable by CI
-   - ensure the `develop` tags have been pushed at least once for each service
+   - ensure the service-specific `*-develop` tags have been pushed at least once for each service
 2. The platform add-ons (ingress, NATS, metrics path) exist in `triad-kubernetes-platform`
 3. The data service DNS names are replaced with real AWS or in-cluster targets
 4. The secret values are replaced with real environment values
