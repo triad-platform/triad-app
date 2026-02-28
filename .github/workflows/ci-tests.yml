@@ -1,0 +1,40 @@
+name: CI Tests
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  push:
+    branches:
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+  service-tests:
+    name: Go Service Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verify formatting
+        run: |
+          test -z "$(gofmt -l .)"
+
+      - name: Run unit and service tests
+        run: |
+          go test ./services/orders/... \
+            ./services/api-gateway/... \
+            ./services/worker/... \
+            ./services/notifications/...

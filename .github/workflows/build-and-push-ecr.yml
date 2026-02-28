@@ -1,0 +1,81 @@
+name: Build And Push ECR Images
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build-and-push:
+    name: Build And Push Service Images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - api-gateway
+          - orders
+          - notifications
+          - worker
+
+    env:
+      AWS_REGION: us-east-1
+      ECR_REGISTRY: "971146591534.dkr.ecr.us-east-1.amazonaws.com"
+      ECR_REPOSITORY_PREFIX: triad-app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Derive image tags
+        id: tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          short_sha="${GITHUB_SHA::12}"
+          echo "short_sha=${short_sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: "arn:aws:iam::971146591534:role/github-actions-triad-app-ecr-push"
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push immutable image
+        uses: triad-platform/triad-ci-security/reusable-actions/build-image@main
+        with:
+          image: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_PREFIX }}-${{ matrix.service }}:${{ matrix.service }}-sha-${{ steps.tags.outputs.short_sha }}
+          context: .
+          dockerfile: Dockerfile
+          push: 'true'
+          build_args: |
+            SERVICE=${{ matrix.service }}
+
+      - name: Build and push branch-sha tag
+        uses: triad-platform/triad-ci-security/reusable-actions/build-image@main
+        with:
+          image: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_PREFIX }}-${{ matrix.service }}:${{ matrix.service }}-${{ github.ref_name }}-${{ steps.tags.outputs.short_sha }}
+          context: .
+          dockerfile: Dockerfile
+          push: 'true'
+          build_args: |
+            SERVICE=${{ matrix.service }}
+
+      - name: Build and push branch tag
+        uses: triad-platform/triad-ci-security/reusable-actions/build-image@main
+        with:
+          image: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_PREFIX }}-${{ matrix.service }}:${{ matrix.service }}-${{ github.ref_name }}
+          context: .
+          dockerfile: Dockerfile
+          push: 'true'
+          build_args: |
+            SERVICE=${{ matrix.service }}

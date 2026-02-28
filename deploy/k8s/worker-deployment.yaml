@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: pulsecart
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+        - name: worker
+          image: 971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-worker:worker-develop
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9091
+              name: metrics
+          env:
+            - name: REDIS_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: pulsecart-config
+                  key: REDIS_ADDR
+            - name: NATS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: pulsecart-config
+                  key: NATS_URL
+            - name: NOTIFICATIONS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: pulsecart-config
+                  key: NOTIFICATIONS_URL
+            - name: WORKER_METRICS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: pulsecart-config
+                  key: WORKER_METRICS_PORT
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
