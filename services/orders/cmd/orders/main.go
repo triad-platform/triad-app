@@ -9,25 +9,63 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
+	"github.com/nats-io/nats.go"
+	"github.com/redis/go-redis/v9"
 	"github.com/triad-platform/triad-app/pkg/config"
 	"github.com/triad-platform/triad-app/pkg/httpx"
 	"github.com/triad-platform/triad-app/pkg/logx"
+	"github.com/triad-platform/triad-app/pkg/metricsx"
+	"github.com/triad-platform/triad-app/services/orders/internal/orders"
 )
 
 func main() {
 	log := logx.New()
+	metrics := metricsx.NewRegistry("triad_orders")
 
 	port := config.Getenv("PORT", "8081")
+	dbURL := config.Getenv("DATABASE_URL", "postgres://pulsecart:pulsecart@localhost:5432/pulsecart?sslmode=disable")
+	redisAddr := config.Getenv("REDIS_ADDR", "localhost:6379")
+	natsURL := config.Getenv("NATS_URL", "nats://localhost:4222")
+
+	dbConn, err := pgx.Connect(context.Background(), dbURL)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to connect to Postgres")
+	}
+	defer dbConn.Close(context.Background())
+
+	orderStore := orders.NewPostgresOrderStore(dbConn)
+	schemaCtx, schemaCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	if err := orderStore.EnsureSchema(schemaCtx); err != nil {
+		schemaCancel()
+		log.Fatal().Err(err).Msg("failed to ensure orders schema")
+	}
+	schemaCancel()
+
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: redisAddr,
+	})
+	defer redisClient.Close()
+
+	nc, err := nats.Connect(natsURL)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to connect to NATS")
+	}
+	defer nc.Close()
 
 	r := chi.NewRouter()
 	r.Get("/healthz", httpx.Healthz)
 	r.Get("/readyz", httpx.Readyz)
+	r.Get("/metrics", metrics.Handler().ServeHTTP)
 
-	// TODO: POST /v1/orders
-	// - validate payload
-	// - enforce idempotency via Redis
-	// - write to Postgres
-	// - publish OrdersCreated to NATS
+	h := &orders.Handler{
+		IdempotencyStore: orders.NewRedisIdempotencyStore(redisClient, "orders:idempotency:"),
+		EventPublisher:   orders.NewNATSEventPublisher(nc, orders.OrdersCreatedSubject),
+		OrderStore:       orderStore,
+		Metrics:          metrics,
+		IdempotencyTTL:   24 * time.Hour,
+	}
+	r.Mount("/", orders.Routes(h))
 
 	srv := &http.Server{
 		Addr:              ":" + port,

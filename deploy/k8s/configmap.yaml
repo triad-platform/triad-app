@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pulsecart-config
+  namespace: pulsecart
+data:
+  ORDERS_URL: http://orders:8081
+  REDIS_ADDR: triad-redis.default.svc.cluster.local:6379
+  NATS_URL: nats://triad-nats.default.svc.cluster.local:4222
+  NOTIFICATIONS_URL: http://notifications:8082
+  WORKER_METRICS_PORT: "9091"

@@ -4,6 +4,7 @@
   "fields": {
     "order_id": "uuid",
     "user_id": "string",
+    "request_id": "string",
     "total_cents": "int",
     "currency": "string",
     "created_at": "rfc3339"

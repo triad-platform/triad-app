@@ -14,3 +14,17 @@ Services:
 - inventory
 - notifications
 - worker
+
+CI:
+- `.github/workflows/ci-tests.yml` runs Go service tests on `pull_request` to `develop`/`main` and pushes to `develop`.
+- `.github/workflows/e2e-local.yml` is a manual `workflow_dispatch` job that runs `make e2e`.
+- `.github/workflows/build-and-push-ecr.yml` builds and pushes the active service images to ECR (after replacing AWS placeholder values).
+
+Branching model:
+- Day-to-day development happens on `develop`.
+- `main` is updated by merging `develop` after validation.
+- Feature branches are optional and can be introduced later as team size/scope grows.
+
+Phase 2 deployment contract:
+- `docs/deployment/000-aws-first-deployment-contract.md` defines the AWS-first handoff between app, landing zone, and Kubernetes platform repos.
+- `deploy/k8s/` contains the first workload manifest scaffold for GitOps consumption.
