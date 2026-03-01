@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: worker
-          image: 971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-worker:worker-develop
+          image: 971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-worker:worker-develop-2d62c04e0fb0
           imagePullPolicy: Always
           ports:
             - containerPort: 9091
