@@ -67,7 +67,7 @@ The application layer must provide:
    - `worker`: metrics on `:9091`
 
 3. Stable dependency contract
-   - Postgres via `DATABASE_URL`
+   - Postgres via explicit `DB_*` settings or an explicit `DATABASE_URL` override
    - Redis via `REDIS_ADDR`
    - NATS via `NATS_URL`
    - Notifications internal HTTP via `NOTIFICATIONS_URL`
@@ -120,6 +120,7 @@ The platform layer must provide:
 3. Core add-ons
    - AWS Load Balancer Controller (ALB ingress)
    - cert-manager
+   - external-secrets for AWS Secrets Manager sync
    - metrics scraping path for `/metrics`
 
 4. Namespace and workload standards
@@ -139,18 +140,30 @@ Minimum required runtime configuration:
    - reached externally through ALB + DNS host `pulsecart-dev.cloudevopsguru.com`
 
 2. `orders`
-   - `DATABASE_URL`
+   - optional `DATABASE_URL`
+   - `DB_HOST`
+   - `DB_PORT`
+   - `DB_NAME`
+   - `DB_USER`
+   - `DB_PASSWORD`
+   - `DB_SSLMODE`
    - `REDIS_ADDR`
+   - `REDIS_TLS_ENABLED`
    - `NATS_URL`
-   - `DATABASE_URL` must target RDS, not in-cluster Postgres
+   - if `DATABASE_URL` is unset, the service builds it from the `DB_*` values
+   - `DB_HOST` / `DB_PORT` must target RDS, not in-cluster Postgres
+   - `DB_PASSWORD` should be sourced from AWS Secrets Manager through `external-secrets`
    - `REDIS_ADDR` must target ElastiCache, not in-cluster Redis
+   - `REDIS_TLS_ENABLED` must be `true` for the current ElastiCache baseline
 
 3. `worker`
    - `REDIS_ADDR`
+   - `REDIS_TLS_ENABLED`
    - `NATS_URL`
    - `NOTIFICATIONS_URL`
    - `WORKER_METRICS_PORT`
    - `REDIS_ADDR` must target ElastiCache
+   - `REDIS_TLS_ENABLED` must be `true` for the current ElastiCache baseline
    - `NATS_URL` remains cluster-local in Phase 2
 
 4. `notifications`

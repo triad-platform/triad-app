@@ -15,8 +15,8 @@ spec:
     spec:
       containers:
         - name: worker
-          image: 971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-worker:worker-develop
-          imagePullPolicy: IfNotPresent
+          image: 971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-worker:worker-develop-2d62c04e0fb0
+          imagePullPolicy: Always
           ports:
             - containerPort: 9091
               name: metrics
@@ -26,6 +26,11 @@ spec:
                 configMapKeyRef:
                   name: pulsecart-config
                   key: REDIS_ADDR
+            - name: REDIS_TLS_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: pulsecart-config
+                  key: REDIS_TLS_ENABLED
             - name: NATS_URL
               valueFrom:
                 configMapKeyRef:

@@ -6,7 +6,8 @@ namespace: pulsecart
 resources:
   - namespace.yaml
   - configmap.yaml
-  - secret.example.yaml
+  - secretstore.yaml
+  - externalsecret-db-password.yaml
   - api-gateway-deployment.yaml
   - api-gateway-service.yaml
   - orders-deployment.yaml

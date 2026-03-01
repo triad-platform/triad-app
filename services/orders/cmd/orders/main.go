@@ -2,9 +2,13 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -24,7 +28,7 @@ func main() {
 	metrics := metricsx.NewRegistry("triad_orders")
 
 	port := config.Getenv("PORT", "8081")
-	dbURL := config.Getenv("DATABASE_URL", "postgres://pulsecart:pulsecart@localhost:5432/pulsecart?sslmode=disable")
+	dbURL := databaseURL()
 	redisAddr := config.Getenv("REDIS_ADDR", "localhost:6379")
 	natsURL := config.Getenv("NATS_URL", "nats://localhost:4222")
 
@@ -42,9 +46,20 @@ func main() {
 	}
 	schemaCancel()
 
-	redisClient := redis.NewClient(&redis.Options{
+	redisOptions := &redis.Options{
 		Addr: redisAddr,
-	})
+	}
+	if strings.EqualFold(config.Getenv("REDIS_TLS_ENABLED", "false"), "true") {
+		host, _, splitErr := net.SplitHostPort(redisAddr)
+		if splitErr != nil {
+			host = redisAddr
+		}
+		redisOptions.TLSConfig = &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			ServerName: host,
+		}
+	}
+	redisClient := redis.NewClient(redisOptions)
 	defer redisClient.Close()
 
 	nc, err := nats.Connect(natsURL)
@@ -88,4 +103,25 @@ func main() {
 	defer cancel()
 	_ = srv.Shutdown(ctx)
 	log.Info().Msg("orders shutdown complete")
+}
+
+func databaseURL() string {
+	if explicit := strings.TrimSpace(config.Getenv("DATABASE_URL", "")); explicit != "" {
+		return explicit
+	}
+
+	host := config.Getenv("DB_HOST", "localhost")
+	port := config.Getenv("DB_PORT", "5432")
+	name := config.Getenv("DB_NAME", "pulsecart")
+	user := config.Getenv("DB_USER", "pulsecart")
+	password := config.Getenv("DB_PASSWORD", "pulsecart")
+	sslmode := config.Getenv("DB_SSLMODE", "disable")
+
+	return (&url.URL{
+		Scheme:   "postgres",
+		User:     url.UserPassword(user, password),
+		Host:     net.JoinHostPort(host, port),
+		Path:     name,
+		RawQuery: "sslmode=" + url.QueryEscape(sslmode),
+	}).String()
 }

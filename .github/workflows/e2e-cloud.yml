@@ -1,0 +1,35 @@
+name: E2E Cloud Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/e2e-cloud.yml"
+      - "deploy/k8s/**"
+      - "services/**"
+      - "pkg/**"
+      - "scripts/e2e-cloud.sh"
+
+concurrency:
+  group: e2e-cloud-develop
+  cancel-in-progress: true
+
+jobs:
+  smoke-cloud:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Wait for Argo reconciliation window
+        run: sleep 90
+
+      - name: Run cloud smoke
+        env:
+          BASE_URL: https://pulsecart-dev.cloudevopsguru.com
+          MAX_ATTEMPTS: "18"
+          SLEEP_SECONDS: "10"
+        run: ./scripts/e2e-cloud.sh
