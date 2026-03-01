@@ -17,8 +17,9 @@ Kubernetes base manifests for the Phase 2 AWS-first PulseCart deployment.
 
 1. Container images
    - The ECR registry is now real (`971146591534.dkr.ecr.us-east-1.amazonaws.com`)
-   - These base manifests intentionally use service-specific mutable branch tags for the first dev environment (for example `orders-develop`)
-   - Because these are mutable dev tags, the deployments use `imagePullPolicy: Always`
+   - CI now promotes these manifests to immutable service-specific branch-SHA tags (for example `orders-develop-<12-char-sha>`) after image push succeeds
+   - The base manifests may temporarily show a branch tag or the last promoted immutable tag depending on where the latest CI promotion landed
+   - `imagePullPolicy: Always` remains in place for safe dev convergence
    - CI publishes three dev tag forms:
      - `<service>-develop` (mutable branch tag)
      - `<service>-sha-<12-char-sha>` (immutable)
