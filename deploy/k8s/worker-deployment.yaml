@@ -16,7 +16,7 @@ spec:
       containers:
         - name: worker
           image: 971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-worker:worker-develop
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 9091
               name: metrics
