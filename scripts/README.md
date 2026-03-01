@@ -17,6 +17,7 @@ Local developer workflows for PulseCart.
      - Waits for the public `/healthz` endpoint
      - Sends `POST /v1/orders` to `pulsecart-dev.cloudevopsguru.com`
      - Verifies duplicate request returns `409`
+   - This is now the manual fallback path; the automatic cloud smoke runs from `triad-kubernetes-platform` when the GitOps overlay changes
 
 ## Usage
 

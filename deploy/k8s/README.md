@@ -17,13 +17,14 @@ Kubernetes base manifests for the Phase 2 AWS-first PulseCart deployment.
 
 1. Container images
    - The ECR registry is now real (`971146591534.dkr.ecr.us-east-1.amazonaws.com`)
-   - CI now promotes these manifests to immutable service-specific branch-SHA tags (for example `orders-develop-<12-char-sha>`) after image push succeeds
-   - The base manifests may temporarily show a branch tag or the last promoted immutable tag depending on where the latest CI promotion landed
+   - These base manifests intentionally stay on service-specific branch tags (for example `orders-develop`) as source defaults
+   - The active deployable image refs for dev now live in the GitOps overlay in `triad-kubernetes-platform`
    - `imagePullPolicy: Always` remains in place for safe dev convergence
    - CI publishes three dev tag forms:
      - `<service>-develop` (mutable branch tag)
      - `<service>-sha-<12-char-sha>` (immutable)
      - `<service>-develop-<12-char-sha>` (immutable but easier to identify in branch history)
+   - The app build workflow promotes the GitOps overlay to digest-pinned image refs after image push succeeds
 2. External dependency endpoints
    - Redis now points at the real Phase 2 ElastiCache endpoint
    - `REDIS_TLS_ENABLED=true` is required for the current ElastiCache configuration

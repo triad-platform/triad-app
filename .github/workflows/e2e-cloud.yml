@@ -2,15 +2,6 @@ name: E2E Cloud Smoke
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - develop
-    paths:
-      - ".github/workflows/e2e-cloud.yml"
-      - "deploy/k8s/**"
-      - "services/**"
-      - "pkg/**"
-      - "scripts/e2e-cloud.sh"
 
 concurrency:
   group: e2e-cloud-develop
