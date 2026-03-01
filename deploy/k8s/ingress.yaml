@@ -4,10 +4,16 @@ metadata:
   name: pulsecart
   namespace: pulsecart
   annotations:
-    kubernetes.io/ingress.class: nginx
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:971146591534:certificate/f3bbb4b7-ecf3-4cde-83f6-87a57ea0c075
+    alb.ingress.kubernetes.io/subnets: subnet-054fd2c237a8afd07,subnet-07e70eab498bc9ebd
 spec:
   rules:
-    - host: pulsecart-dev.example.com
+    - host: pulsecart-dev.cloudevopsguru.com
       http:
         paths:
           - path: /
