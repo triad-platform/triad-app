@@ -77,6 +77,13 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing fields", http.StatusBadRequest)
 		return
 	}
+	for _, item := range req.Items {
+		if item.SKU == "" || item.Qty <= 0 || item.PriceCents <= 0 {
+			h.inc("create_order_validation_errors_total")
+			http.Error(w, "invalid items", http.StatusBadRequest)
+			return
+		}
+	}
 
 	if h.IdempotencyStore == nil {
 		h.inc("create_order_service_errors_total")

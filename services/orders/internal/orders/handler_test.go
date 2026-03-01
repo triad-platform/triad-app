@@ -60,6 +60,17 @@ func TestCreateOrder(t *testing.T) {
 			wantPublishes:  0,
 		},
 		{
+			name:           "invalid item values",
+			body:           `{"user_id":"u_123","items":[{"sku":"sku_1","quantity":0,"unit_price":0}],"currency":"USD"}`,
+			idempotencyKey: "idem-invalid-items",
+			store:          &stubIdempotencyStore{reserveResult: true},
+			orderStore:     &stubOrderStore{},
+			publisher:      &stubPublisher{},
+			wantStatusCode: http.StatusBadRequest,
+			wantStoreCalls: 0,
+			wantPublishes:  0,
+		},
+		{
 			name:           "missing currency",
 			body:           `{"user_id":"u_123","items":[{"sku":"sku_1","qty":1,"price_cents":100}]}`,
 			idempotencyKey: "idem-missing-currency",
@@ -127,7 +138,7 @@ func TestCreateOrder(t *testing.T) {
 		},
 		{
 			name:           "valid request",
-			body:           `{"user_id":"u_123","items":[{"sku":"sku_1","qty":1,"price_cents":100}],"currency":"USD"}`,
+			body:           `{"user_id":"u_123","items":[{"sku":"sku_1","quantity":1,"unit_price":100}],"currency":"USD"}`,
 			idempotencyKey: "idem-valid",
 			requestID:      "req-test-123",
 			store:          &stubIdempotencyStore{reserveResult: true},
@@ -222,7 +233,7 @@ func TestCreateOrder_IdempotencyBehavior(t *testing.T) {
 		IdempotencyTTL:   time.Minute,
 	}
 
-	body := `{"user_id":"u_123","items":[{"sku":"sku_1","qty":1,"price_cents":100}],"currency":"USD"}`
+	body := `{"user_id":"u_123","items":[{"sku":"sku_1","quantity":1,"unit_price":100}],"currency":"USD"}`
 	key := "idem-repeat"
 
 	req1 := httptest.NewRequest(http.MethodPost, "/v1/orders", strings.NewReader(body))
