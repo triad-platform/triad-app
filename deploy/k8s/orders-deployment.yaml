@@ -23,11 +23,36 @@ spec:
           env:
             - name: PORT
               value: "8081"
-            - name: DATABASE_URL
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: pulsecart-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: pulsecart-config
+                  key: DB_PORT
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: pulsecart-config
+                  key: DB_NAME
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: pulsecart-config
+                  key: DB_USER
+            - name: DB_SSLMODE
+              valueFrom:
+                configMapKeyRef:
+                  name: pulsecart-config
+                  key: DB_SSLMODE
+            - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: pulsecart-secrets
-                  key: DATABASE_URL
+                  key: DB_PASSWORD
             - name: REDIS_ADDR
               valueFrom:
                 configMapKeyRef:
