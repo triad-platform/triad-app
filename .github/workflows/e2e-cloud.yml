@@ -7,9 +7,8 @@ on:
       - develop
     paths:
       - ".github/workflows/e2e-cloud.yml"
+      - ".github/workflows/build-and-push-ecr.yml"
       - "deploy/k8s/**"
-      - "services/**"
-      - "pkg/**"
       - "scripts/e2e-cloud.sh"
 
 concurrency:
