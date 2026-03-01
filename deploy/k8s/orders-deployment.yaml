@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: orders
-          image: 971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-orders:995d5055c983848defdd97a33ee50286541e7a2b5335514ee22edbb37e52b1ab
+          image: 971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-orders:orders-develop
           imagePullPolicy: Always
           ports:
             - containerPort: 8081

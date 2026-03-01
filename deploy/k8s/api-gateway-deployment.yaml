@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: api-gateway
-          image: 971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-api-gateway:b412b873845965ff94741558b910c4dd5bbbf0bf6344f536bb663938f3125908
+          image: 971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-api-gateway:api-gateway-develop
           imagePullPolicy: Always
           ports:
             - containerPort: 8080

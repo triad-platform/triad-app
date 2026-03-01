@@ -18,8 +18,9 @@ Services:
 CI:
 - `.github/workflows/ci-tests.yml` runs Go service tests on `pull_request` to `develop`/`main` and pushes to `develop`.
 - `.github/workflows/e2e-local.yml` is a manual `workflow_dispatch` job that runs `make e2e`.
-- `.github/workflows/e2e-cloud.yml` runs a public dev-environment smoke check against `https://pulsecart-dev.cloudevopsguru.com` after deploy-manifest changes on `develop` (including CI image-promotion commits), so it validates what ArgoCD is actually reconciling.
-- `.github/workflows/build-and-push-ecr.yml` builds service images on `develop` pushes, then updates `deploy/k8s/` to ECR image digests in a follow-up commit so ArgoCD only sees a deployable immutable image reference.
+- `.github/workflows/e2e-cloud.yml` remains available as a manual smoke trigger from the app repo.
+- `.github/workflows/build-and-push-ecr.yml` builds service images on `develop` pushes, then updates the GitOps overlay in `triad-kubernetes-platform` to ECR image digests in the same workflow so ArgoCD only sees deployable immutable image references.
+  - This workflow requires a GitHub secret named `TRIAD_PLATFORM_GITOPS_PAT` with write access to `triad-kubernetes-platform`.
 
 Branching model:
 - Day-to-day development happens on `develop`.

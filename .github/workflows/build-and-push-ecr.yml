@@ -8,14 +8,19 @@ on:
       - ".github/workflows/build-and-push-ecr.yml"
       - "Dockerfile"
       - ".dockerignore"
+      - "deploy/k8s/**"
       - "go.mod"
       - "go.sum"
       - "pkg/**"
       - "services/**"
   workflow_dispatch:
 
+concurrency:
+  group: build-and-promote-develop
+  cancel-in-progress: true
+
 permissions:
-  contents: write
+  contents: read
   id-token: write
 
 jobs:
@@ -89,7 +94,7 @@ jobs:
             SERVICE=${{ matrix.service }}
 
   promote-dev-manifests:
-    name: Promote Dev Manifests To Image Digests
+    name: Promote GitOps Overlay To Image Digests
     runs-on: ubuntu-latest
     needs: build-and-push
     if: github.ref == 'refs/heads/develop'
@@ -97,11 +102,23 @@ jobs:
       AWS_REGION: us-east-1
       ECR_REGISTRY: "971146591534.dkr.ecr.us-east-1.amazonaws.com"
       ECR_REPOSITORY_PREFIX: triad-app
+      GITOPS_REPO: triad-platform/triad-kubernetes-platform
+      GITOPS_REF: develop
+      GITOPS_PATH: workloads/pulsecart/dev/kustomization.yaml
     steps:
-      - name: Checkout
+      - name: Checkout app repo
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITOPS_REPO }}
+          ref: ${{ env.GITOPS_REF }}
+          token: ${{ secrets.TRIAD_PLATFORM_GITOPS_PAT }}
+          path: gitops-platform
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -109,7 +126,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: "arn:aws:iam::971146591534:role/github-actions-triad-app-ecr-push"
 
-      - name: Update deployment image digests
+      - name: Update GitOps overlay image digests
         shell: bash
         run: |
           set -euo pipefail
@@ -141,25 +158,26 @@ jobs:
             --query 'imageDetails[0].imageDigest' \
             --output text)"
 
-          perl -0pi -e 's|971146591534\.dkr\.ecr\.us-east-1\.amazonaws\.com/triad-app-api-gateway(?:[:@][^"\s]+)?|'"${ECR_REGISTRY}"'/triad-app-api-gateway@'"${api_gateway_digest}"'|g' deploy/k8s/api-gateway-deployment.yaml
-          perl -0pi -e 's|971146591534\.dkr\.ecr\.us-east-1\.amazonaws\.com/triad-app-orders(?:[:@][^"\s]+)?|'"${ECR_REGISTRY}"'/triad-app-orders@'"${orders_digest}"'|g' deploy/k8s/orders-deployment.yaml
-          perl -0pi -e 's|971146591534\.dkr\.ecr\.us-east-1\.amazonaws\.com/triad-app-notifications(?:[:@][^"\s]+)?|'"${ECR_REGISTRY}"'/triad-app-notifications@'"${notifications_digest}"'|g' deploy/k8s/notifications-deployment.yaml
-          perl -0pi -e 's|971146591534\.dkr\.ecr\.us-east-1\.amazonaws\.com/triad-app-worker(?:[:@][^"\s]+)?|'"${ECR_REGISTRY}"'/triad-app-worker@'"${worker_digest}"'|g' deploy/k8s/worker-deployment.yaml
+          overlay="gitops-platform/${GITOPS_PATH}"
+          perl -0pi -e 's|^# triad-app source revision: .*$|# triad-app source revision: '"${GITHUB_SHA}"'|m' "${overlay}"
+          perl -0pi -e 's|(newName: 971146591534\.dkr\.ecr\.us-east-1\.amazonaws\.com/triad-app-api-gateway\n\s+)(?:newTag|digest): [^\n]+|\1digest: '"${api_gateway_digest}"'|g' "${overlay}"
+          perl -0pi -e 's|(newName: 971146591534\.dkr\.ecr\.us-east-1\.amazonaws\.com/triad-app-orders\n\s+)(?:newTag|digest): [^\n]+|\1digest: '"${orders_digest}"'|g' "${overlay}"
+          perl -0pi -e 's|(newName: 971146591534\.dkr\.ecr\.us-east-1\.amazonaws\.com/triad-app-notifications\n\s+)(?:newTag|digest): [^\n]+|\1digest: '"${notifications_digest}"'|g' "${overlay}"
+          perl -0pi -e 's|(newName: 971146591534\.dkr\.ecr\.us-east-1\.amazonaws\.com/triad-app-worker\n\s+)(?:newTag|digest): [^\n]+|\1digest: '"${worker_digest}"'|g' "${overlay}"
 
-      - name: Commit manifest promotion
+      - name: Commit GitOps promotion
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- deploy/k8s; then
-            echo "No deployment manifest changes to commit."
+          cd gitops-platform
+
+          if git diff --quiet -- "${GITOPS_PATH}"; then
+            echo "No GitOps overlay changes to commit."
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add deploy/k8s/api-gateway-deployment.yaml \
-            deploy/k8s/orders-deployment.yaml \
-            deploy/k8s/notifications-deployment.yaml \
-            deploy/k8s/worker-deployment.yaml
-          git commit -m "ci: promote image digests for ${GITHUB_SHA::12}"
-          git push origin HEAD:develop
+          git add "${GITOPS_PATH}"
+          git commit -m "ci: promote pulsecart digests for ${GITHUB_SHA::12}"
+          git push origin HEAD:"${GITOPS_REF}"
