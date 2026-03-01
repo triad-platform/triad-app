@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: notifications
-          image: 971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-notifications:notifications-develop-2d62c04e0fb0
+          image: 971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-notifications:af652fb766b33ec1c989966e8ba286a7ba48fdc42f5b7d4584be1fa73b7ee75f
           imagePullPolicy: Always
           ports:
             - containerPort: 8082
