@@ -141,16 +141,20 @@ Minimum required runtime configuration:
 2. `orders`
    - `DATABASE_URL`
    - `REDIS_ADDR`
+   - `REDIS_TLS_ENABLED`
    - `NATS_URL`
    - `DATABASE_URL` must target RDS, not in-cluster Postgres
    - `REDIS_ADDR` must target ElastiCache, not in-cluster Redis
+   - `REDIS_TLS_ENABLED` must be `true` for the current ElastiCache baseline
 
 3. `worker`
    - `REDIS_ADDR`
+   - `REDIS_TLS_ENABLED`
    - `NATS_URL`
    - `NOTIFICATIONS_URL`
    - `WORKER_METRICS_PORT`
    - `REDIS_ADDR` must target ElastiCache
+   - `REDIS_TLS_ENABLED` must be `true` for the current ElastiCache baseline
    - `NATS_URL` remains cluster-local in Phase 2
 
 4. `notifications`

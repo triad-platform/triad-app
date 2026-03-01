@@ -24,6 +24,7 @@ Kubernetes base manifests for the Phase 2 AWS-first PulseCart deployment.
      - `<service>-develop-<12-char-sha>` (immutable but easier to identify in branch history)
 2. External dependency endpoints
    - Redis now points at the real Phase 2 ElastiCache endpoint
+   - `REDIS_TLS_ENABLED=true` is required for the current ElastiCache configuration
    - Postgres now points at the real Phase 2 RDS endpoint with TLS required
    - NATS remains cluster-local in Phase 2
 3. Ingress host

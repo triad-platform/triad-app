@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"net/http"
+	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -42,9 +45,20 @@ func main() {
 	}
 	schemaCancel()
 
-	redisClient := redis.NewClient(&redis.Options{
+	redisOptions := &redis.Options{
 		Addr: redisAddr,
-	})
+	}
+	if strings.EqualFold(config.Getenv("REDIS_TLS_ENABLED", "false"), "true") {
+		host, _, splitErr := net.SplitHostPort(redisAddr)
+		if splitErr != nil {
+			host = redisAddr
+		}
+		redisOptions.TLSConfig = &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			ServerName: host,
+		}
+	}
+	redisClient := redis.NewClient(redisOptions)
 	defer redisClient.Close()
 
 	nc, err := nats.Connect(natsURL)

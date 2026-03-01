@@ -26,6 +26,11 @@ spec:
                 configMapKeyRef:
                   name: pulsecart-config
                   key: REDIS_ADDR
+            - name: REDIS_TLS_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: pulsecart-config
+                  key: REDIS_TLS_ENABLED
             - name: NATS_URL
               valueFrom:
                 configMapKeyRef:
