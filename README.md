@@ -18,6 +18,7 @@ Services:
 CI:
 - `.github/workflows/ci-tests.yml` runs Go service tests on `pull_request` to `develop`/`main` and pushes to `develop`.
 - `.github/workflows/e2e-local.yml` is a manual `workflow_dispatch` job that runs `make e2e`.
+- `.github/workflows/e2e-cloud.yml` runs a public dev-environment smoke check against `https://pulsecart-dev.cloudevopsguru.com` on `develop` pushes that affect runtime/deploy paths.
 - `.github/workflows/build-and-push-ecr.yml` builds and pushes the active service images to ECR (after replacing AWS placeholder values).
 
 Branching model:

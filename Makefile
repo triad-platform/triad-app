@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: up down ps logs smoke e2e
+.PHONY: up down ps logs smoke e2e smoke-cloud
 
 up:
 	docker compose -f infra/compose/docker-compose.yml up -d
@@ -21,3 +21,6 @@ smoke:
 
 e2e:
 	./scripts/e2e-local.sh
+
+smoke-cloud:
+	./scripts/e2e-cloud.sh
