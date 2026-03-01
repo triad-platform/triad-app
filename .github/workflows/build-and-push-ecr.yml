@@ -89,26 +89,62 @@ jobs:
             SERVICE=${{ matrix.service }}
 
   promote-dev-manifests:
-    name: Promote Dev Manifests To Immutable Tags
+    name: Promote Dev Manifests To Image Digests
     runs-on: ubuntu-latest
     needs: build-and-push
     if: github.ref == 'refs/heads/develop'
+    env:
+      AWS_REGION: us-east-1
+      ECR_REGISTRY: "971146591534.dkr.ecr.us-east-1.amazonaws.com"
+      ECR_REPOSITORY_PREFIX: triad-app
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Update deployment image tags
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: "arn:aws:iam::971146591534:role/github-actions-triad-app-ecr-push"
+
+      - name: Update deployment image digests
         shell: bash
         run: |
           set -euo pipefail
           short_sha="${GITHUB_SHA::12}"
+          tag_suffix="develop-${short_sha}"
 
-          perl -0pi -e 's|triad-app-api-gateway:[^"\s]+|triad-app-api-gateway:api-gateway-develop-'"${short_sha}"'|g' deploy/k8s/api-gateway-deployment.yaml
-          perl -0pi -e 's|triad-app-orders:[^"\s]+|triad-app-orders:orders-develop-'"${short_sha}"'|g' deploy/k8s/orders-deployment.yaml
-          perl -0pi -e 's|triad-app-notifications:[^"\s]+|triad-app-notifications:notifications-develop-'"${short_sha}"'|g' deploy/k8s/notifications-deployment.yaml
-          perl -0pi -e 's|triad-app-worker:[^"\s]+|triad-app-worker:worker-develop-'"${short_sha}"'|g' deploy/k8s/worker-deployment.yaml
+          api_gateway_digest="$(aws ecr describe-images \
+            --region "${AWS_REGION}" \
+            --repository-name "${ECR_REPOSITORY_PREFIX}-api-gateway" \
+            --image-ids imageTag="api-gateway-${tag_suffix}" \
+            --query 'imageDetails[0].imageDigest' \
+            --output text)"
+          orders_digest="$(aws ecr describe-images \
+            --region "${AWS_REGION}" \
+            --repository-name "${ECR_REPOSITORY_PREFIX}-orders" \
+            --image-ids imageTag="orders-${tag_suffix}" \
+            --query 'imageDetails[0].imageDigest' \
+            --output text)"
+          notifications_digest="$(aws ecr describe-images \
+            --region "${AWS_REGION}" \
+            --repository-name "${ECR_REPOSITORY_PREFIX}-notifications" \
+            --image-ids imageTag="notifications-${tag_suffix}" \
+            --query 'imageDetails[0].imageDigest' \
+            --output text)"
+          worker_digest="$(aws ecr describe-images \
+            --region "${AWS_REGION}" \
+            --repository-name "${ECR_REPOSITORY_PREFIX}-worker" \
+            --image-ids imageTag="worker-${tag_suffix}" \
+            --query 'imageDetails[0].imageDigest' \
+            --output text)"
+
+          perl -0pi -e 's|971146591534\.dkr\.ecr\.us-east-1\.amazonaws\.com/triad-app-api-gateway(?:[:@][^"\s]+)?|'"${ECR_REGISTRY}"'/triad-app-api-gateway@'"${api_gateway_digest}"'|g' deploy/k8s/api-gateway-deployment.yaml
+          perl -0pi -e 's|971146591534\.dkr\.ecr\.us-east-1\.amazonaws\.com/triad-app-orders(?:[:@][^"\s]+)?|'"${ECR_REGISTRY}"'/triad-app-orders@'"${orders_digest}"'|g' deploy/k8s/orders-deployment.yaml
+          perl -0pi -e 's|971146591534\.dkr\.ecr\.us-east-1\.amazonaws\.com/triad-app-notifications(?:[:@][^"\s]+)?|'"${ECR_REGISTRY}"'/triad-app-notifications@'"${notifications_digest}"'|g' deploy/k8s/notifications-deployment.yaml
+          perl -0pi -e 's|971146591534\.dkr\.ecr\.us-east-1\.amazonaws\.com/triad-app-worker(?:[:@][^"\s]+)?|'"${ECR_REGISTRY}"'/triad-app-worker@'"${worker_digest}"'|g' deploy/k8s/worker-deployment.yaml
 
       - name: Commit manifest promotion
         shell: bash
@@ -125,5 +161,5 @@ jobs:
             deploy/k8s/orders-deployment.yaml \
             deploy/k8s/notifications-deployment.yaml \
             deploy/k8s/worker-deployment.yaml
-          git commit -m "ci: promote dev images to ${GITHUB_SHA::12}"
+          git commit -m "ci: promote image digests for ${GITHUB_SHA::12}"
           git push origin HEAD:develop
