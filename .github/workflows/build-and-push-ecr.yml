@@ -134,7 +134,17 @@ jobs:
           update_digest() {
             local image_name="$1"
             local digest="$2"
-            sed -i "/newName: ${image_name//\//\\/}/{n;s|^\\([[:space:]]*\\)\\(newTag\\|digest\\): .*|\\1digest: ${digest}|;}" "$overlay"
+            awk -v image_name="$image_name" -v digest="$digest" '
+              $0 == "    newName: " image_name {
+                print
+                getline
+                sub(/^[[:space:]]*(newTag|digest): .*/, "    digest: " digest)
+                print
+                next
+              }
+              { print }
+            ' "$overlay" > "${overlay}.tmp"
+            mv "${overlay}.tmp" "$overlay"
           }
 
           short_sha="${GITHUB_SHA::12}"
