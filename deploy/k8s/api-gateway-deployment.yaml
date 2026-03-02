@@ -23,11 +23,23 @@ spec:
           env:
             - name: PORT
               value: "8080"
+            - name: ENABLE_DEV_DIAGNOSTICS
+              value: "true"
             - name: ORDERS_URL
               valueFrom:
                 configMapKeyRef:
                   name: pulsecart-config
                   key: ORDERS_URL
+            - name: WORKER_METRICS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: pulsecart-config
+                  key: WORKER_METRICS_URL
+            - name: NOTIFICATIONS_METRICS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: pulsecart-config
+                  key: NOTIFICATIONS_METRICS_URL
           readinessProbe:
             httpGet:
               path: /readyz

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -29,22 +30,40 @@ const (
 )
 
 type gatewayConfig struct {
-	OrdersURL       string
-	RequestTimeout  time.Duration
-	UpstreamTimeout time.Duration
-	Client          *http.Client
+	OrdersURL               string
+	WorkerMetricsURL        string
+	NotificationsMetricsURL string
+	EnableDevDiagnostics    bool
+	RequestTimeout          time.Duration
+	UpstreamTimeout         time.Duration
+	Client                  *http.Client
 }
 
 func ordersURL() string {
 	return config.Getenv("ORDERS_URL", "http://localhost:8081")
 }
 
+func workerMetricsURL() string {
+	return strings.TrimSpace(os.Getenv("WORKER_METRICS_URL"))
+}
+
+func notificationsMetricsURL() string {
+	return strings.TrimSpace(os.Getenv("NOTIFICATIONS_METRICS_URL"))
+}
+
+func enableDevDiagnostics() bool {
+	return strings.EqualFold(config.Getenv("ENABLE_DEV_DIAGNOSTICS", "false"), "true")
+}
+
 func newRouter() http.Handler {
 	metrics := metricsx.NewRegistry("triad_api_gateway")
 	return newRouterWithConfig(gatewayConfig{
-		OrdersURL:       ordersURL(),
-		RequestTimeout:  5 * time.Second,
-		UpstreamTimeout: 3 * time.Second,
+		OrdersURL:               ordersURL(),
+		WorkerMetricsURL:        workerMetricsURL(),
+		NotificationsMetricsURL: notificationsMetricsURL(),
+		EnableDevDiagnostics:    enableDevDiagnostics(),
+		RequestTimeout:          5 * time.Second,
+		UpstreamTimeout:         3 * time.Second,
 	}, metrics)
 }
 
@@ -63,6 +82,9 @@ func newRouterWithConfig(cfg gatewayConfig, metrics *metricsx.Registry) http.Han
 	r.Get("/readyz", httpx.Readyz)
 	r.Get("/metrics", metrics.Handler().ServeHTTP)
 	r.Post(ordersPath, forwardOrdersHandler(cfg, metrics))
+	if cfg.EnableDevDiagnostics {
+		r.Get("/v1/dev/async-status", asyncStatusHandler(cfg, metrics))
+	}
 	return r
 }
 
@@ -163,6 +185,98 @@ func forwardOrdersHandler(cfg gatewayConfig, metrics *metricsx.Registry) http.Ha
 		w.WriteHeader(resp.StatusCode)
 		_, _ = io.Copy(w, resp.Body)
 	}
+}
+
+type asyncStatusResponse struct {
+	WorkerMessagesProcessed       int64 `json:"worker_messages_processed"`
+	WorkerMessagesDuplicates      int64 `json:"worker_messages_duplicates"`
+	WorkerMessagesErrors          int64 `json:"worker_messages_errors"`
+	NotificationsAccepted         int64 `json:"notifications_accepted"`
+	NotificationsValidationErrors int64 `json:"notifications_validation_errors"`
+}
+
+func asyncStatusHandler(cfg gatewayConfig, metrics *metricsx.Registry) http.HandlerFunc {
+	client := cfg.Client
+	if client == nil {
+		client = &http.Client{Timeout: 3 * time.Second}
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if strings.TrimSpace(cfg.WorkerMetricsURL) == "" || strings.TrimSpace(cfg.NotificationsMetricsURL) == "" {
+			metrics.Inc("dev_async_status_errors_total")
+			http.Error(w, "async diagnostics not configured", http.StatusServiceUnavailable)
+			return
+		}
+
+		workerMetrics, err := fetchMetrics(r.Context(), client, cfg.WorkerMetricsURL)
+		if err != nil {
+			metrics.Inc("dev_async_status_errors_total")
+			http.Error(w, "failed to read worker metrics", http.StatusBadGateway)
+			return
+		}
+		notificationsMetrics, err := fetchMetrics(r.Context(), client, cfg.NotificationsMetricsURL)
+		if err != nil {
+			metrics.Inc("dev_async_status_errors_total")
+			http.Error(w, "failed to read notifications metrics", http.StatusBadGateway)
+			return
+		}
+
+		resp := asyncStatusResponse{
+			WorkerMessagesProcessed:       workerMetrics["triad_worker_messages_processed_total"],
+			WorkerMessagesDuplicates:      workerMetrics["triad_worker_messages_duplicates_total"],
+			WorkerMessagesErrors:          workerMetrics["triad_worker_messages_errors_total"],
+			NotificationsAccepted:         notificationsMetrics["triad_notifications_accepted_total"],
+			NotificationsValidationErrors: notificationsMetrics["triad_notifications_validation_errors_total"],
+		}
+
+		metrics.Inc("dev_async_status_requests_total")
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			metrics.Inc("dev_async_status_errors_total")
+			http.Error(w, "failed to encode response", http.StatusInternalServerError)
+			return
+		}
+	}
+}
+
+func fetchMetrics(ctx context.Context, client *http.Client, url string) (map[string]int64, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, errors.New("unexpected metrics status")
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return parseMetricsCounters(string(body)), nil
+}
+
+func parseMetricsCounters(body string) map[string]int64 {
+	out := map[string]int64{}
+	for _, line := range strings.Split(body, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) != 2 {
+			continue
+		}
+		v, err := strconv.ParseInt(fields[1], 10, 64)
+		if err != nil {
+			continue
+		}
+		out[fields[0]] = v
+	}
+	return out
 }
 
 func copyHeaderIfPresent(from *http.Request, to *http.Request, key string) {
