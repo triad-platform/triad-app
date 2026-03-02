@@ -59,7 +59,7 @@ func main() {
 	}
 
 	go func() {
-		log.Info().Msgf("notifications listening on :%s", port)
+		log.Info().Msgf("notifications listening on :%s (gitops)", port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal().Err(err).Msg("server failed")
 		}
