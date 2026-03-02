@@ -130,6 +130,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          update_digest() {
+            local image_name="$1"
+            local digest="$2"
+            sed -i "/newName: ${image_name//\//\\/}/{n;s|^\\([[:space:]]*\\)\\(newTag\\|digest\\): .*|\\1digest: ${digest}|;}" "$overlay"
+          }
+
           short_sha="${GITHUB_SHA::12}"
           tag_suffix="develop-${short_sha}"
 
@@ -159,11 +166,11 @@ jobs:
             --output text)"
 
           overlay="gitops-platform/${GITOPS_PATH}"
-          perl -0pi -e 's|^# triad-app source revision: .*$|# triad-app source revision: '"${GITHUB_SHA}"'|m' "${overlay}"
-          perl -0pi -e 's|(newName: 971146591534\.dkr\.ecr\.us-east-1\.amazonaws\.com/triad-app-api-gateway\n\s+)(?:newTag|digest): [^\n]+|\1digest: '"${api_gateway_digest}"'|g' "${overlay}"
-          perl -0pi -e 's|(newName: 971146591534\.dkr\.ecr\.us-east-1\.amazonaws\.com/triad-app-orders\n\s+)(?:newTag|digest): [^\n]+|\1digest: '"${orders_digest}"'|g' "${overlay}"
-          perl -0pi -e 's|(newName: 971146591534\.dkr\.ecr\.us-east-1\.amazonaws\.com/triad-app-notifications\n\s+)(?:newTag|digest): [^\n]+|\1digest: '"${notifications_digest}"'|g' "${overlay}"
-          perl -0pi -e 's|(newName: 971146591534\.dkr\.ecr\.us-east-1\.amazonaws\.com/triad-app-worker\n\s+)(?:newTag|digest): [^\n]+|\1digest: '"${worker_digest}"'|g' "${overlay}"
+          sed -i "s|^# triad-app source revision: .*$|# triad-app source revision: ${GITHUB_SHA}|" "${overlay}"
+          update_digest "971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-api-gateway" "${api_gateway_digest}"
+          update_digest "971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-orders" "${orders_digest}"
+          update_digest "971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-notifications" "${notifications_digest}"
+          update_digest "971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-worker" "${worker_digest}"
 
       - name: Commit GitOps promotion
         shell: bash
