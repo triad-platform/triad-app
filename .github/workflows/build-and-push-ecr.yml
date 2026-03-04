@@ -41,6 +41,8 @@ jobs:
       AWS_REGION: us-east-1
       ECR_REGISTRY: "971146591534.dkr.ecr.us-east-1.amazonaws.com"
       ECR_REPOSITORY_PREFIX: triad-app
+      SECURITY_EVIDENCE_S3_BUCKET: ${{ vars.SECURITY_EVIDENCE_S3_BUCKET }}
+      SECURITY_EVIDENCE_S3_PREFIX: ${{ vars.SECURITY_EVIDENCE_S3_PREFIX }}
 
     steps:
       - name: Checkout
@@ -140,6 +142,33 @@ jobs:
             sbom-${{ matrix.service }}.spdx.json
             grype-${{ matrix.service }}.json
           if-no-files-found: error
+
+      - name: Upload supply-chain evidence to S3
+        if: ${{ env.SECURITY_EVIDENCE_S3_BUCKET != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          short_sha="${GITHUB_SHA::12}"
+          prefix="${SECURITY_EVIDENCE_S3_PREFIX:-supply-chain/}"
+          prefix="${prefix#/}"
+          if [[ "${prefix}" != */ ]]; then
+            prefix="${prefix}/"
+          fi
+          base_path="s3://${SECURITY_EVIDENCE_S3_BUCKET}/${prefix}triad-app/${GITHUB_SHA}/${{ matrix.service }}/"
+          aws s3 cp "sbom-${{ matrix.service }}.spdx.json" "${base_path}sbom.spdx.json"
+          aws s3 cp "grype-${{ matrix.service }}.json" "${base_path}grype.json"
+          cat > evidence-metadata-${{ matrix.service }}.json <<JSON
+          {
+            "service": "${{ matrix.service }}",
+            "git_sha": "${GITHUB_SHA}",
+            "short_sha": "${short_sha}",
+            "image_ref": "${IMAGE_REF}",
+            "run_id": "${GITHUB_RUN_ID}",
+            "run_attempt": "${GITHUB_RUN_ATTEMPT}",
+            "uploaded_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          JSON
+          aws s3 cp "evidence-metadata-${{ matrix.service }}.json" "${base_path}metadata.json"
 
   promote-dev-manifests:
     name: Promote GitOps Overlay To Image Digests
