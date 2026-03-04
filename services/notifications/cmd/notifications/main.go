@@ -15,19 +15,27 @@ import (
 	"github.com/triad-platform/triad-app/pkg/config"
 	"github.com/triad-platform/triad-app/pkg/httpx"
 	"github.com/triad-platform/triad-app/pkg/logx"
+	"github.com/triad-platform/triad-app/pkg/metricsx"
 )
 
-func newRouter(log zerolog.Logger) http.Handler {
+func newRouter(log zerolog.Logger, metrics *metricsx.Registry) http.Handler {
+	if metrics == nil {
+		metrics = metricsx.NewRegistry("triad_notifications")
+	}
 	r := chi.NewRouter()
 	r.Get("/healthz", httpx.Healthz)
 	r.Get("/readyz", httpx.Readyz)
+	r.Get("/metrics", metrics.Handler().ServeHTTP)
 	r.Post("/v1/notify", func(w http.ResponseWriter, r *http.Request) {
+		metrics.Inc("requests_total")
 		var req notifyRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			metrics.Inc("validation_errors_total")
 			http.Error(w, "invalid json", http.StatusBadRequest)
 			return
 		}
 		if err := req.validate(); err != nil {
+			metrics.Inc("validation_errors_total")
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -39,6 +47,7 @@ func newRouter(log zerolog.Logger) http.Handler {
 			Int("total_cents", req.TotalCents).
 			Str("currency", req.Currency).
 			Msg("notification accepted")
+		metrics.Inc("accepted_total")
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
@@ -49,17 +58,18 @@ func newRouter(log zerolog.Logger) http.Handler {
 
 func main() {
 	log := logx.New()
+	metrics := metricsx.NewRegistry("triad_notifications")
 
 	port := config.Getenv("PORT", "8082")
 
 	srv := &http.Server{
 		Addr:              ":" + port,
-		Handler:           newRouter(log),
+		Handler:           newRouter(log, metrics),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	go func() {
-		log.Info().Msgf("notifications listening on :%s", port)
+		log.Info().Msgf("notifications listening on :%s (aws-baseline)", port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal().Err(err).Msg("server failed")
 		}

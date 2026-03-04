@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -150,6 +151,77 @@ func TestGateway_UpstreamTimeout(t *testing.T) {
 
 	if rec.Code != http.StatusGatewayTimeout {
 		t.Fatalf("status code mismatch: got=%d want=%d body=%q", rec.Code, http.StatusGatewayTimeout, rec.Body.String())
+	}
+}
+
+func TestGateway_AsyncStatus(t *testing.T) {
+	t.Parallel()
+
+	client := &http.Client{
+		Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			switch req.URL.String() {
+			case "http://worker:9091/metrics":
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body: io.NopCloser(strings.NewReader(
+						"# TYPE triad_worker_messages_processed_total counter\n" +
+							"triad_worker_messages_processed_total 3\n" +
+							"triad_worker_messages_duplicates_total 1\n" +
+							"triad_worker_messages_errors_total 0\n",
+					)),
+				}, nil
+			case "http://notifications:8082/metrics":
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body: io.NopCloser(strings.NewReader(
+						"# TYPE triad_notifications_accepted_total counter\n" +
+							"triad_notifications_accepted_total 3\n" +
+							"triad_notifications_validation_errors_total 1\n",
+					)),
+				}, nil
+			default:
+				return nil, io.EOF
+			}
+		}),
+	}
+
+	r := newRouterWithConfig(gatewayConfig{
+		EnableDevDiagnostics:    true,
+		WorkerMetricsURL:        "http://worker:9091/metrics",
+		NotificationsMetricsURL: "http://notifications:8082/metrics",
+		Client:                  client,
+	}, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/dev/async-status", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status code mismatch: got=%d want=%d body=%q", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var resp asyncStatusResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.WorkerMessagesProcessed != 3 {
+		t.Fatalf("worker processed mismatch: got=%d want=3", resp.WorkerMessagesProcessed)
+	}
+	if resp.NotificationsAccepted != 3 {
+		t.Fatalf("notifications accepted mismatch: got=%d want=3", resp.NotificationsAccepted)
+	}
+}
+
+func TestGateway_AsyncStatusDisabled(t *testing.T) {
+	t.Parallel()
+
+	r := newRouterWithConfig(gatewayConfig{}, nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/dev/async-status", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status code mismatch: got=%d want=%d body=%q", rec.Code, http.StatusNotFound, rec.Body.String())
 	}
 }
 

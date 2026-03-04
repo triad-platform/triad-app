@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"net/http"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
