@@ -41,8 +41,8 @@ jobs:
       AWS_REGION: us-east-1
       ECR_REGISTRY: "971146591534.dkr.ecr.us-east-1.amazonaws.com"
       ECR_REPOSITORY_PREFIX: triad-app
-      SECURITY_EVIDENCE_S3_BUCKET: ${{ vars.SECURITY_EVIDENCE_S3_BUCKET }}
-      SECURITY_EVIDENCE_S3_PREFIX: ${{ vars.SECURITY_EVIDENCE_S3_PREFIX }}
+      SECURITY_EVIDENCE_S3_BUCKET: "triad-dev-security"
+      SECURITY_EVIDENCE_S3_PREFIX: "supply-chain/"
 
     steps:
       - name: Checkout
@@ -144,7 +144,6 @@ jobs:
           if-no-files-found: error
 
       - name: Upload supply-chain evidence to S3
-        if: ${{ env.SECURITY_EVIDENCE_S3_BUCKET != '' }}
         shell: bash
         run: |
           set -euo pipefail

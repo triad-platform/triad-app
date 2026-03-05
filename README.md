@@ -23,9 +23,7 @@ CI:
 - `.github/workflows/build-and-push-ecr.yml` builds service images on `develop` pushes, then updates the GitOps overlay in `triad-kubernetes-platform` to ECR image digests in the same workflow so ArgoCD only sees deployable immutable image references.
   - This workflow requires a GitHub secret named `TRIAD_PLATFORM_GITOPS_PAT` with write access to `triad-kubernetes-platform`.
   - It now also generates SBOM + scan + sign/attest evidence per service and uploads those artifacts.
-  - To persist evidence in AWS, set GitHub repo variables:
-    1. `SECURITY_EVIDENCE_S3_BUCKET`
-    2. `SECURITY_EVIDENCE_S3_PREFIX` (optional, default behavior is `supply-chain/`)
+  - Supply-chain evidence is uploaded to `s3://triad-dev-security/supply-chain/` by default.
 
 Branching model:
 - Day-to-day development happens on `develop`.
