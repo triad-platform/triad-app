@@ -22,6 +22,8 @@ CI:
 - The automatic async-aware cloud smoke now runs from `triad-kubernetes-platform` after GitOps overlay changes, not from the app repo.
 - `.github/workflows/build-and-push-ecr.yml` builds service images on `develop` pushes, then updates the GitOps overlay in `triad-kubernetes-platform` to ECR image digests in the same workflow so ArgoCD only sees deployable immutable image references.
   - This workflow requires a GitHub secret named `TRIAD_PLATFORM_GITOPS_PAT` with write access to `triad-kubernetes-platform`.
+  - It now also generates SBOM + scan + sign/attest evidence per service and uploads those artifacts.
+  - Supply-chain evidence is uploaded to `s3://triad-dev-security/supply-chain/` by default.
 
 Branching model:
 - Day-to-day development happens on `develop`.

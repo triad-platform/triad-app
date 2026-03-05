@@ -41,6 +41,8 @@ jobs:
       AWS_REGION: us-east-1
       ECR_REGISTRY: "971146591534.dkr.ecr.us-east-1.amazonaws.com"
       ECR_REPOSITORY_PREFIX: triad-app
+      SECURITY_EVIDENCE_S3_BUCKET: "triad-dev-security"
+      SECURITY_EVIDENCE_S3_PREFIX: "supply-chain/"
 
     steps:
       - name: Checkout
@@ -92,6 +94,80 @@ jobs:
           push: 'true'
           build_args: |
             SERVICE=${{ matrix.service }}
+
+      - name: Resolve immutable digest reference
+        id: digest
+        shell: bash
+        run: |
+          set -euo pipefail
+          short_sha="${GITHUB_SHA::12}"
+          repo="${ECR_REPOSITORY_PREFIX}-${{ matrix.service }}"
+          tag="${{ matrix.service }}-sha-${short_sha}"
+          digest="$(aws ecr describe-images \
+            --region "${AWS_REGION}" \
+            --repository-name "${repo}" \
+            --image-ids imageTag="${tag}" \
+            --query 'imageDetails[0].imageDigest' \
+            --output text)"
+          image_ref="${ECR_REGISTRY}/${repo}@${digest}"
+          echo "image_ref=${image_ref}" >> "${GITHUB_OUTPUT}"
+          echo "IMAGE_REF=${image_ref}" >> "${GITHUB_ENV}"
+
+      - name: Generate SBOM
+        uses: triad-platform/triad-ci-security/reusable-actions/sbom@develop
+        with:
+          image: ${{ steps.digest.outputs.image_ref }}
+          output_file: sbom-${{ matrix.service }}.spdx.json
+
+      - name: Scan image vulnerabilities
+        uses: triad-platform/triad-ci-security/reusable-actions/scan@develop
+        with:
+          image: ${{ steps.digest.outputs.image_ref }}
+          sbom_file: sbom-${{ matrix.service }}.spdx.json
+          fail_on_severity: high
+          output_file: grype-${{ matrix.service }}.json
+
+      - name: Sign and attest image
+        uses: triad-platform/triad-ci-security/reusable-actions/sign@develop
+        with:
+          image: ${{ steps.digest.outputs.image_ref }}
+          sbom_file: sbom-${{ matrix.service }}.spdx.json
+          predicate_type: spdxjson
+
+      - name: Upload supply-chain evidence artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: supply-chain-${{ matrix.service }}-${{ steps.tags.outputs.short_sha }}
+          path: |
+            sbom-${{ matrix.service }}.spdx.json
+            grype-${{ matrix.service }}.json
+          if-no-files-found: error
+
+      - name: Upload supply-chain evidence to S3
+        shell: bash
+        run: |
+          set -euo pipefail
+          short_sha="${GITHUB_SHA::12}"
+          prefix="${SECURITY_EVIDENCE_S3_PREFIX:-supply-chain/}"
+          prefix="${prefix#/}"
+          if [[ "${prefix}" != */ ]]; then
+            prefix="${prefix}/"
+          fi
+          base_path="s3://${SECURITY_EVIDENCE_S3_BUCKET}/${prefix}triad-app/${GITHUB_SHA}/${{ matrix.service }}/"
+          aws s3 cp "sbom-${{ matrix.service }}.spdx.json" "${base_path}sbom.spdx.json"
+          aws s3 cp "grype-${{ matrix.service }}.json" "${base_path}grype.json"
+          cat > evidence-metadata-${{ matrix.service }}.json <<JSON
+          {
+            "service": "${{ matrix.service }}",
+            "git_sha": "${GITHUB_SHA}",
+            "short_sha": "${short_sha}",
+            "image_ref": "${IMAGE_REF}",
+            "run_id": "${GITHUB_RUN_ID}",
+            "run_attempt": "${GITHUB_RUN_ATTEMPT}",
+            "uploaded_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          JSON
+          aws s3 cp "evidence-metadata-${{ matrix.service }}.json" "${base_path}metadata.json"
 
   promote-dev-manifests:
     name: Promote GitOps Overlay To Image Digests
