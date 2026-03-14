@@ -3,15 +3,22 @@ kind: Deployment
 metadata:
   name: worker
   namespace: pulsecart
+  labels:
+    app.kubernetes.io/name: worker
+    app.kubernetes.io/part-of: pulsecart
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: worker
+      app.kubernetes.io/name: worker
+      app.kubernetes.io/part-of: pulsecart
   template:
     metadata:
       labels:
         app: worker
+        app.kubernetes.io/name: worker
+        app.kubernetes.io/part-of: pulsecart
     spec:
       containers:
         - name: worker

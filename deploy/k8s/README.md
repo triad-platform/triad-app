@@ -39,9 +39,11 @@ Kubernetes base manifests for the Phase 2 AWS-first PulseCart deployment.
 6. DNS automation
    - the ingress now includes the `external-dns` hostname annotation for future Route 53 automation
 
-## Do Not Apply Yet
+## Do Not Apply Directly
 
-Do not apply these manifests to a cluster yet unless all of the following are true:
+Do not treat this folder as the direct deployment source for EKS. It is the app-owned base consumed by the GitOps overlay in `triad-kubernetes-platform`.
+
+Direct apply is only reasonable for targeted debugging, and only when all of the following are true:
 
 1. Real image names/tags exist and are pushable by CI
    - ensure the service-specific `*-develop` tags have been pushed at least once for each service
@@ -71,10 +73,15 @@ Base manifests now assume:
 
 `secret.example.yaml` remains only as a local fallback example and should not be part of the base `kustomization.yaml`.
 
-## Safe Next Use
+## Normal AWS Deploy Path
 
-These manifests are ready to serve as the GitOps target for:
+These manifests serve as the app-owned base for:
 
 - `/Users/lseino/triad-platform/triad-kubernetes-platform/apps/workloads/pulsecart-workloads.yaml`
+- `/Users/lseino/triad-platform/triad-kubernetes-platform/workloads/pulsecart/dev/kustomization.yaml`
 
-Once real image and dependency values exist, this path becomes the first deployable app workload set.
+The normal deployable path is:
+
+1. `triad-app` workflow builds and signs images
+2. the same workflow updates the GitOps overlay to digest-pinned ECR refs
+3. ArgoCD reconciles the overlay, not this base directory directly

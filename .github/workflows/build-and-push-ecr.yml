@@ -202,14 +202,15 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: "arn:aws:iam::971146591534:role/github-actions-triad-app-ecr-push"
 
-      - name: Update GitOps overlay image digests
+      - name: Rebase and push GitOps promotion
         shell: bash
         run: |
           set -euo pipefail
 
           update_digest() {
-            local image_name="$1"
-            local digest="$2"
+            local overlay_file="$1"
+            local image_name="$2"
+            local digest="$3"
             awk -v image_name="$image_name" -v digest="$digest" '
               $0 == "    newName: " image_name {
                 print
@@ -219,58 +220,76 @@ jobs:
                 next
               }
               { print }
-            ' "$overlay" > "${overlay}.tmp"
-            mv "${overlay}.tmp" "$overlay"
+            ' "${overlay_file}" > "${overlay_file}.tmp"
+            mv "${overlay_file}.tmp" "${overlay_file}"
           }
 
-          short_sha="${GITHUB_SHA::12}"
-          tag_suffix="develop-${short_sha}"
+          refresh_overlay() {
+            local overlay_file="$1"
+            local short_sha="${GITHUB_SHA::12}"
+            local tag_suffix="develop-${short_sha}"
 
-          api_gateway_digest="$(aws ecr describe-images \
-            --region "${AWS_REGION}" \
-            --repository-name "${ECR_REPOSITORY_PREFIX}-api-gateway" \
-            --image-ids imageTag="api-gateway-${tag_suffix}" \
-            --query 'imageDetails[0].imageDigest' \
-            --output text)"
-          orders_digest="$(aws ecr describe-images \
-            --region "${AWS_REGION}" \
-            --repository-name "${ECR_REPOSITORY_PREFIX}-orders" \
-            --image-ids imageTag="orders-${tag_suffix}" \
-            --query 'imageDetails[0].imageDigest' \
-            --output text)"
-          notifications_digest="$(aws ecr describe-images \
-            --region "${AWS_REGION}" \
-            --repository-name "${ECR_REPOSITORY_PREFIX}-notifications" \
-            --image-ids imageTag="notifications-${tag_suffix}" \
-            --query 'imageDetails[0].imageDigest' \
-            --output text)"
-          worker_digest="$(aws ecr describe-images \
-            --region "${AWS_REGION}" \
-            --repository-name "${ECR_REPOSITORY_PREFIX}-worker" \
-            --image-ids imageTag="worker-${tag_suffix}" \
-            --query 'imageDetails[0].imageDigest' \
-            --output text)"
+            api_gateway_digest="$(aws ecr describe-images \
+              --region "${AWS_REGION}" \
+              --repository-name "${ECR_REPOSITORY_PREFIX}-api-gateway" \
+              --image-ids imageTag="api-gateway-${tag_suffix}" \
+              --query 'imageDetails[0].imageDigest' \
+              --output text)"
+            orders_digest="$(aws ecr describe-images \
+              --region "${AWS_REGION}" \
+              --repository-name "${ECR_REPOSITORY_PREFIX}-orders" \
+              --image-ids imageTag="orders-${tag_suffix}" \
+              --query 'imageDetails[0].imageDigest' \
+              --output text)"
+            notifications_digest="$(aws ecr describe-images \
+              --region "${AWS_REGION}" \
+              --repository-name "${ECR_REPOSITORY_PREFIX}-notifications" \
+              --image-ids imageTag="notifications-${tag_suffix}" \
+              --query 'imageDetails[0].imageDigest' \
+              --output text)"
+            worker_digest="$(aws ecr describe-images \
+              --region "${AWS_REGION}" \
+              --repository-name "${ECR_REPOSITORY_PREFIX}-worker" \
+              --image-ids imageTag="worker-${tag_suffix}" \
+              --query 'imageDetails[0].imageDigest' \
+              --output text)"
 
-          overlay="gitops-platform/${GITOPS_PATH}"
-          sed -i "s|^# triad-app source revision: .*$|# triad-app source revision: ${GITHUB_SHA}|" "${overlay}"
-          update_digest "971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-api-gateway" "${api_gateway_digest}"
-          update_digest "971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-orders" "${orders_digest}"
-          update_digest "971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-notifications" "${notifications_digest}"
-          update_digest "971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-worker" "${worker_digest}"
+            sed -i "s|^# triad-app source revision: .*$|# triad-app source revision: ${GITHUB_SHA}|" "${overlay_file}"
+            update_digest "${overlay_file}" "971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-api-gateway" "${api_gateway_digest}"
+            update_digest "${overlay_file}" "971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-orders" "${orders_digest}"
+            update_digest "${overlay_file}" "971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-notifications" "${notifications_digest}"
+            update_digest "${overlay_file}" "971146591534.dkr.ecr.us-east-1.amazonaws.com/triad-app-worker" "${worker_digest}"
+          }
 
-      - name: Commit GitOps promotion
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd gitops-platform
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          if git diff --quiet -- "${GITOPS_PATH}"; then
-            echo "No GitOps overlay changes to commit."
-            exit 0
-          fi
+          attempts=5
+          for attempt in $(seq 1 "${attempts}"); do
+            echo "Promotion attempt ${attempt}/${attempts}"
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "${GITOPS_PATH}"
-          git commit -m "ci: promote pulsecart digests for ${GITHUB_SHA::12}"
-          git push origin HEAD:"${GITOPS_REF}"
+            git -C gitops-platform fetch origin "${GITOPS_REF}"
+            git -C gitops-platform checkout -B "${GITOPS_REF}" "origin/${GITOPS_REF}"
+
+            overlay="gitops-platform/${GITOPS_PATH}"
+            refresh_overlay "${overlay}"
+
+            if git -C gitops-platform diff --quiet -- "${GITOPS_PATH}"; then
+              echo "No GitOps overlay changes to commit."
+              exit 0
+            fi
+
+            git -C gitops-platform add "${GITOPS_PATH}"
+            git -C gitops-platform commit -m "ci: promote pulsecart digests for ${GITHUB_SHA::12}"
+
+            if git -C gitops-platform push origin HEAD:"${GITOPS_REF}"; then
+              echo "GitOps promotion pushed successfully."
+              exit 0
+            fi
+
+            echo "Push rejected after concurrent updates; retrying on latest ${GITOPS_REF}."
+            sleep $((attempt * 2))
+          done
+
+          echo "failed to push GitOps promotion after ${attempts} attempts" >&2
+          exit 1

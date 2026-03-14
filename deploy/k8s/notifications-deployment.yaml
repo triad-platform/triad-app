@@ -3,15 +3,22 @@ kind: Deployment
 metadata:
   name: notifications
   namespace: pulsecart
+  labels:
+    app.kubernetes.io/name: notifications
+    app.kubernetes.io/part-of: pulsecart
 spec:
   replicas: 2
   selector:
     matchLabels:
       app: notifications
+      app.kubernetes.io/name: notifications
+      app.kubernetes.io/part-of: pulsecart
   template:
     metadata:
       labels:
         app: notifications
+        app.kubernetes.io/name: notifications
+        app.kubernetes.io/part-of: pulsecart
     spec:
       containers:
         - name: notifications
